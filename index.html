@@ -60,6 +60,9 @@ li{margin:4px 0}
 .fx button:disabled{opacity:.45;border-style:dashed}
 .used-row{display:flex;align-items:center;gap:8px;min-height:44px}
 h3{font-size:1rem;margin:12px 0 4px;color:var(--dim)}
+.gold-row{display:grid;grid-template-columns:1fr 3ch 48px 48px;gap:8px;align-items:center;margin:6px 0}
+.gold-row b{text-align:right;font-size:1.2rem}
+.gold-row button{padding:0;font-size:1.3rem}
 </style></head>
 <body><main id="app"><p class="dim">Loading…</p></main>
 <script>
@@ -78,14 +81,15 @@ const n2 = w => NUM[w.toLowerCase()] ?? +w;
 const cap = w => w[0].toUpperCase() + w.slice(1).toLowerCase();
 // eff = list of [track id, change]; negative = spend/clear. Button is disabled if you can't afford it.
 const fx = (label, eff) => {
-  // Why can't this button be used right now? '' = it can.
-  const why = eff.map(([r, v]) => {
+  // Why can't this button be used right now? Returns the first problem found, or nothing if it can be used.
+  const bad = eff.map(([r, v]) => {
     const cur = state.live[TRACKS[r].k], max = TRACKS[r].max(state);
-    if (v < 0 && r === 'hope') return cur + v < 0 ? 'not enough' : '';   // can't spend Hope you don't have
-    if (v < 0) return cur === 0 ? 'nothing to clear' : '';               // clearing with nothing marked wastes the cost
-    return cur + v > max ? 'not enough' : '';                            // no empty boxes left to mark
-  }).find(x => x) || '';
-  return `<button data-fx="${esc(JSON.stringify(eff))}" ${why ? 'disabled' : ''}>${label}${why ? ` (${why})` : ''}</button>`;
+    if (v < 0 && r === 'hope') return cur + v < 0 && { text: `${label} (not enough)` };   // can't spend Hope you don't have
+    if (v < 0) return cur === 0 && { text: `${label} (nothing to clear)` };                // clearing with nothing marked wastes the cost
+    if (cur + v > max) return { text: r === 'stress' ? 'Stressed out' : `${label} (not enough)` };  // no empty boxes left to mark
+    return false;
+  }).find(x => x);
+  return `<button data-fx="${esc(JSON.stringify(eff))}" ${bad ? 'disabled' : ''}>${bad ? bad.text : label}</button>`;
 };
 function btns(line) {
   const re = /spend (a|an|one|two|three|\d+) hope to clear (a|an|one|two|three|\d+) stress|(mark|spend|clear) (a|an|one|two|three|four|\d+) (stress|hope|armor slot|armor|hit point)/gi;
@@ -169,7 +173,7 @@ function render() {
   $('#app').innerHTML = `
   <p><button data-act="back">‹ Characters</button></p>
   <h1>${esc(id.name)} <span class="dim">${esc(id.pronouns)}</span></h1>
-  <p class="dim">Level ${id.level} (tier ${id.tier}) ${esc(id.ancestry)} ${esc(id.class)} · ${esc(id.subclass)} · ${esc(id.community)}</p>
+  <p class="dim">Level ${id.level} (tier ${id.tier}) ${esc(id.ancestry)} ${esc(id.class)} · ${esc(id.subclass)} · ${esc(id.community)} · tracker v5</p>
   <div class="bar">${Object.entries(TRACKS).map(([k, t]) => `<span>${NAME[k]} <b>${s.live[t.k]}/${t.max(s)}</b></span>`).join('')}</div>
   <section><h2>Live</h2>${track('hp')}${track('stress')}${track('hope')}${track('armor')}
     <p class="dim">Tap a box to mark up to it. Tap the last marked box to unmark it.</p>
@@ -191,7 +195,7 @@ function render() {
   <section><h2>Traits</h2><div class="grid">${Object.entries(s.traits).map(([k, t]) =>
     `<div class="stat">${cap(k)}<b>${sign(t.value)}</b>${t.marked ? '<span class="tag on">marked</span>' : ''}</div>`).join('')}</div>
     <h3>Experiences</h3>${s.experiences.map(e => `<div>${esc(e.name)} <b>${sign(e.bonus)}</b></div>`).join('')}</section>
-  <section><h2>Gold</h2><div class="grid">${Object.keys(s.gold).map(g => `<div class="stat">${g}<div class="step" style="justify-content:center"><button data-gold="${g}" data-d="-1" aria-label="less ${g}">−</button><b>${s.gold[g]}</b><button data-gold="${g}" data-d="1" aria-label="more ${g}">+</button></div></div>`).join('')}</div></section>
+  <section><h2>Gold</h2>${['coins', 'handfuls', 'bags', 'chests'].map(g => `<div class="gold-row"><span>${g}</span><b>${s.gold[g]}</b><button data-gold="${g}" data-d="-1" aria-label="less ${g}">−</button><button data-gold="${g}" data-d="1" aria-label="more ${g}">+</button></div>`).join('')}</section>
   <section><h2>Inventory</h2><ul>${s.inventory.map((it, i) => `<li>${esc(it)} <button data-act="del" data-i="${i}" aria-label="remove ${esc(it)}">Remove</button></li>`).join('')}</ul>
     <div class="row"><input type="text" id="newItem" placeholder="Add an item" style="flex:1"><button data-act="add">Add</button></div></section>
   <section><h2>Notes</h2><textarea id="notes" rows="5">${esc(s.notes)}</textarea></section>
