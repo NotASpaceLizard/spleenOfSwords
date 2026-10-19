@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daggerheart table tracker</title>
+<!--
+=====================================================================
+ DAGGERHEART TABLE TRACKER  -  one file, no build step, no libraries.
+ HOW IT WORKS
+  1. On load it reads characters/index.json (a list of file names),
+     then loads the chosen character JSON from characters/.
+  2. "frozen" data (stats, cards, features) is shown read-only.
+     Players change only: live tracks, gold, inventory, notes,
+     loadout toggles and rest checkboxes.
+  3. Every change autosaves in this browser (localStorage).
+  4. "Download" saves the character as JSON to send to the organizer.
+ EASY TWEAKS
+  - Colors: the :root block in the <style> below.
+  - Track shapes: the .hp/.stress/.hope/.armor rules.
+  - Add/remove a counter: the TRACKS object in the script.
+  - Wording: edit the text inside the render() functions.
+=====================================================================
+-->
+<style>
+:root{--bg:#0f1823;--panel:#182638;--line:#34506b;--text:#ece7d9;--dim:#9fb0c2;--on:#8fd0f0;--ink:#0f1823}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:12px 12px 80px}
+h1,h2{font-family:Georgia,serif;font-weight:700;margin:0}
+h1{font-size:1.7rem} h2{font-size:1.05rem;margin-bottom:8px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin:12px 0}
+.dim{color:var(--dim);font-size:.9rem}
+button{font:inherit;color:var(--text);background:none;border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:44px}
+button:focus-visible,summary:focus-visible{outline:3px solid var(--on);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center}
+.stat b{display:block;font-size:1.3rem}
+.track{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 12px}
+.track .label{width:100%}
+/* Each track has its OWN SHAPE so nothing depends on color. Marked = solid fill + a check. */
+.box{width:44px;height:44px;padding:0;border:3px solid var(--text);background:none;color:var(--ink);font-weight:800;font-size:1.2rem}
+.box.on{background:var(--on)}
+.hp{border-radius:4px}
+.stress{border-radius:4px;transform:rotate(45deg);width:36px;height:36px;margin:4px}
+.stress span{display:inline-block;transform:rotate(-45deg)}
+.hope{border-radius:50%}
+.armor{border-radius:4px 4px 50% 50%}
+.step{display:flex;align-items:center;gap:6px}
+.step button{width:44px;padding:0}
+.cd{border-top:1px solid var(--line);padding:8px 0}
+.tag{border:1px solid var(--dim);border-radius:99px;padding:0 8px;font-size:.8rem;color:var(--dim)}
+.tag.on{background:var(--on);color:var(--ink);border-color:var(--on);font-weight:700}
+details{margin:6px 0} summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
+textarea,input[type=text]{width:100%;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px}
+li{margin:4px 0}
+</style></head>
+<body><main id="app"><p class="dim">Loading…</p></main>
+<script>
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const clone = o => JSON.parse(JSON.stringify(o));
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Feature text uses **bold** markers and newlines; turn them into HTML.
+const rich = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+const sign = n => (n >= 0 ? '+' : '') + n;
+
+// ---------- the tracks (add a new counter here) ----------
+// k = field in state.live, max = where the maximum comes from, shape = CSS class
+const TRACKS = {
+  hp:     { label: 'HP marked (damage taken)', k: 'hpMarked',        max: s => s.maximums.hp,       shape: 'hp' },
+  stress: { label: 'Stress marked',            k: 'stressMarked',    max: s => s.maximums.stress,   shape: 'stress' },
+  hope:   { label: 'Hope',                     k: 'hope',            max: s => s.maximums.hope,     shape: 'hope' },
+  armor:  { label: 'Armor slots marked',       k: 'armorSlotsMarked',max: s => s.defenses.armorScore, shape: 'armor' }
+};
+
+let base, state, key;   // base = frozen file as loaded; state = working copy
+
+// ---------- loading ----------
+async function boot() {
+  try {
+    const list = await (await fetch('characters/index.json')).json();
+    $('#app').innerHTML = '<h1>Who is playing?</h1><div class="row" style="margin:12px 0">' +
+      list.map(f => `<button data-load="${esc(f)}">${esc(f.replace('.json',''))}</button>`).join('') +
+      '</div><p class="dim">Or open a downloaded file: <input type="file" id="file" accept=".json"></p>';
+  } catch (e) {
+    $('#app').innerHTML = '<h1>Daggerheart tracker</h1><p>Could not load the character list (this happens when the page is opened straight from a folder). Open a character file instead:</p><input type="file" id="file" accept=".json">';
+  }
+}
+async function loadFile(name) { init(await (await fetch('characters/' + name)).json()); }
+function init(json) {
+  base = json; key = 'dh:' + json.identity.name;
+  state = clone(json);
+  try {  // restore this device's in-progress session, if it belongs to the same freeze
+    const saved = JSON.parse(localStorage.getItem(key));
+    if (saved && saved.meta.frozenOn === base.meta.frozenOn) state = saved;
+  } catch (e) {}
+  render();
+}
+function save() { try { localStorage.setItem(key, JSON.stringify(state)); } catch (e) {} render(); }
+
+// ---------- "what changed" summary (helps players update heartofdaggers by hand) ----------
+function changes() {
+  const out = [], b = base.live, l = state.live;
+  for (const t of Object.values(TRACKS)) if (b[t.k] !== l[t.k]) out.push(`${t.label}: ${b[t.k]} → ${l[t.k]}`);
+  for (const g in base.gold) if (base.gold[g] !== state.gold[g]) out.push(`Gold ${g}: ${base.gold[g]} → ${state.gold[g]}`);
+  state.inventory.filter(i => !base.inventory.includes(i)).forEach(i => out.push('Inventory added: ' + i));
+  base.inventory.filter(i => !state.inventory.includes(i)).forEach(i => out.push('Inventory removed: ' + i));
+  state.domainCards.forEach((c, i) => { if (c.inLoadout !== base.domainCards[i].inLoadout) out.push(`${c.name}: moved to ${c.inLoadout ? 'loadout' : 'vault'}`); });
+  if (state.notes !== base.notes) out.push('Notes edited');
+  return out;
+}
+
+// ---------- drawing the page ----------
+function track(id) {
+  const t = TRACKS[id], max = t.max(state), n = state.live[t.k];
+  let boxes = '';
+  for (let i = 0; i < max; i++)
+    boxes += `<button class="box ${t.shape} ${i < n ? 'on' : ''}" data-track="${id}" data-i="${i}" aria-pressed="${i < n}" aria-label="${t.label} ${i + 1}"><span>${i < n ? '✓' : ''}</span></button>`;
+  return `<div class="track"><div class="label"><b>${t.label}</b> <span class="dim">${n} / ${max}</span></div>${boxes}</div>`;
+}
+function render() {
+  const s = state, id = s.identity, d = s.defenses, ch = changes();
+  const loadout = s.domainCards.filter(c => c.inLoadout).length;
+  $('#app').innerHTML = `
+  <p><button data-act="back">‹ Characters</button></p>
+  <h1>${esc(id.name)} <span class="dim">${esc(id.pronouns)}</span></h1>
+  <p class="dim">Level ${id.level} (tier ${id.tier}) ${esc(id.ancestry)} ${esc(id.class)} · ${esc(id.subclass)} · ${esc(id.community)}<br>Domains: ${esc(id.domains.join(', '))} · Spellcast: ${esc(id.spellcastTrait)}</p>
+  <section><h2>Live</h2>${track('hp')}${track('stress')}${track('hope')}${track('armor')}
+    <p class="dim">Tap a box to mark up to it. Tap the last marked box to unmark it.</p></section>
+  <section><h2>Defenses</h2><div class="grid">
+    <div class="stat">Evasion<b>${d.evasion}</b></div><div class="stat">Armor score<b>${d.armorScore}</b></div><div class="stat">Proficiency<b>${s.proficiency}</b></div></div>
+    <p>Damage: under <b>${d.thresholds.major}</b> = 1 HP · <b>${d.thresholds.major}</b>+ = 2 HP · <b>${d.thresholds.severe}</b>+ = 3 HP</p>
+    <p class="dim">${esc(d.armor.name)} (base thresholds ${esc(d.armor.baseThresholds)}, base score ${d.armor.baseScore})</p></section>
+  <section><h2>Traits</h2><div class="grid">${Object.entries(s.traits).map(([k, t]) =>
+    `<div class="stat">${k[0].toUpperCase() + k.slice(1)}<b>${sign(t.value)}</b>${t.marked ? '<span class="tag on">marked</span>' : ''}</div>`).join('')}</div></section>
+  <section><h2>Weapons</h2>${s.weapons.map(w => `<div class="cd"><b>${esc(w.name)}</b> <span class="tag ${w.slot === 'primary' ? 'on' : ''}">${esc(w.slot)}</span>${w.active ? ' <span class="tag">active</span>' : ''}
+    <div>${esc(w.traitRange)} · <b>${esc(w.damage)}</b></div><div class="dim">${rich(w.feature)}</div></div>`).join('')}</section>
+  <section><h2>Experiences</h2>${s.experiences.map(e => `<div>${esc(e.name)} <b>${sign(e.bonus)}</b></div>`).join('')}</section>
+  <section><h2>Domain cards <span class="dim">(loadout ${loadout} / 5)</span></h2>${s.domainCards.map((c, i) => `<div class="cd">
+    <b>${esc(c.name)}</b> <span class="dim">lvl ${c.level} · ${esc(c.domain)} · ${esc(c.type)} · recall ${c.recall}</span>
+    <div>${rich(c.text)}</div>
+    <button data-act="loadout" data-i="${i}" aria-pressed="${c.inLoadout}">${c.inLoadout ? '■ In loadout (tap to move to vault)' : '□ In vault (tap to move to loadout)'}</button></div>`).join('')}</section>
+  <section><h2>Once per rest</h2>${s.restAbilities.map((r, i) => `<label class="row" style="min-height:44px"><input type="checkbox" data-rest="${i}" ${s.live.restUsed[i] ? 'checked' : ''} style="width:28px;height:28px"> <span>${esc(r)} — ${s.live.restUsed[i] ? 'used' : 'available'}</span></label>`).join('')}
+    <button data-act="rest">Take a rest (reset all)</button></section>
+  <section><h2>Features</h2>
+    <details><summary>Hope feature</summary>${rich(s.features.hope)}</details>
+    <details><summary>Class and subclass</summary>${rich(s.features.classAndSubclass)}</details>
+    <details><summary>Heritage</summary>${rich(s.features.heritage)}</details></section>
+  <section><h2>Gold</h2><div class="grid">${Object.keys(s.gold).map(g => `<div class="stat">${g}<div class="step" style="justify-content:center"><button data-gold="${g}" data-d="-1" aria-label="less ${g}">−</button><b>${s.gold[g]}</b><button data-gold="${g}" data-d="1" aria-label="more ${g}">+</button></div></div>`).join('')}</div></section>
+  <section><h2>Inventory</h2><ul>${s.inventory.map((it, i) => `<li>${esc(it)} <button data-act="del" data-i="${i}" aria-label="remove ${esc(it)}">Remove</button></li>`).join('')}</ul>
+    <div class="row"><input type="text" id="newItem" placeholder="Add an item" style="flex:1"><button data-act="add">Add</button></div></section>
+  <section><h2>Notes</h2><textarea id="notes" rows="5">${esc(s.notes)}</textarea></section>
+  <section><h2>End of session</h2>
+    <details ${ch.length ? 'open' : ''}><summary>Changes this session (${ch.length})</summary>${ch.length ? '<ul>' + ch.map(c => `<li>${esc(c)}</li>`).join('') + '</ul><p class="dim">Re-enter these on heartofdaggers.</p>' : '<p class="dim">No changes yet.</p>'}</details>
+    <div class="row"><button data-act="download"><b>Download ${esc(id.name.toLowerCase())}.json</b></button><button data-act="discard">Discard session changes</button></div></section>`;
+}
+
+// ---------- events ----------
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const D = b.dataset;
+  if (D.load) return loadFile(D.load);
+  if (D.track) { const t = TRACKS[D.track], n = +D.i + 1; state.live[t.k] = state.live[t.k] === n ? n - 1 : n; return save(); }
+  if (D.gold) { state.gold[D.gold] = Math.max(0, state.gold[D.gold] + +D.d); return save(); }
+  if (D.act === 'loadout') { const c = state.domainCards[D.i]; c.inLoadout = !c.inLoadout; return save(); }
+  if (D.act === 'rest') { state.live.restUsed = {}; return save(); }
+  if (D.act === 'del') { state.inventory.splice(D.i, 1); return save(); }
+  if (D.act === 'add') { const v = $('#newItem').value.trim(); if (v) { state.inventory.push(v); save(); } return; }
+  if (D.act === 'back') return boot();
+  if (D.act === 'discard') { if (confirm('Throw away all changes made this session?')) { state = clone(base); save(); } return; }
+  if (D.act === 'download') {
+    state.meta.lastSessionOn = new Date().toISOString().slice(0, 10);   // stamp the session date
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }));
+    a.download = state.identity.name.toLowerCase().replace(/\W+/g, '-') + '.json'; a.click(); return save();
+  }
+});
+document.addEventListener('change', async e => {
+  if (e.target.dataset.rest !== undefined) { state.live.restUsed[e.target.dataset.rest] = e.target.checked; save(); }
+  if (e.target.id === 'file' && e.target.files[0]) init(JSON.parse(await e.target.files[0].text()));
+});
+document.addEventListener('input', e => { if (e.target.id === 'notes') { state.notes = e.target.value; try { localStorage.setItem(key, JSON.stringify(state)); } catch (x) {} } });
+boot();
+</script></body></html>
