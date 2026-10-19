@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Spleen of Swords</title>
+<title>Daggerheart table tracker</title>
 <!--
 =====================================================================
  DAGGERHEART TABLE TRACKER  -  one file, no build step, no libraries.
@@ -78,8 +78,14 @@ const n2 = w => NUM[w.toLowerCase()] ?? +w;
 const cap = w => w[0].toUpperCase() + w.slice(1).toLowerCase();
 // eff = list of [track id, change]; negative = spend/clear. Button is disabled if you can't afford it.
 const fx = (label, eff) => {
-  const no = eff.some(([r, v]) => v < 0 && state.live[TRACKS[r].k] + v < 0);
-  return `<button data-fx="${esc(JSON.stringify(eff))}" ${no ? 'disabled' : ''}>${label}${no ? ' (not enough)' : ''}</button>`;
+  // Why can't this button be used right now? '' = it can.
+  const why = eff.map(([r, v]) => {
+    const cur = state.live[TRACKS[r].k], max = TRACKS[r].max(state);
+    if (v < 0 && r === 'hope') return cur + v < 0 ? 'not enough' : '';   // can't spend Hope you don't have
+    if (v < 0) return cur === 0 ? 'nothing to clear' : '';               // clearing with nothing marked wastes the cost
+    return cur + v > max ? 'not enough' : '';                            // no empty boxes left to mark
+  }).find(x => x) || '';
+  return `<button data-fx="${esc(JSON.stringify(eff))}" ${why ? 'disabled' : ''}>${label}${why ? ` (${why})` : ''}</button>`;
 };
 function btns(line) {
   const re = /spend (a|an|one|two|three|\d+) hope to clear (a|an|one|two|three|\d+) stress|(mark|spend|clear) (a|an|one|two|three|four|\d+) (stress|hope|armor slot|armor|hit point)/gi;
