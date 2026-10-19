@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "meta": { "frozenOn": "2026-10-19", "lastSessionOn": null },
+  "identity": { "name": "Rondo", "pronouns": "He/Him", "class": "Assassin", "subclass": "Executioners Guild", "domains": ["Blade", "Midnight"], "spellcastTrait": "Agility", "ancestry": "Ribbet", "community": "Orderborne", "level": 3, "tier": 2 },
+  "traits": {
+    "agility": { "value": 3, "modifier": 1, "marked": true },
+    "strength": { "value": -1, "modifier": 0, "marked": false },
+    "finesse": { "value": 1, "modifier": 0, "marked": false },
+    "instinct": { "value": 0, "modifier": 0, "marked": false },
+    "presence": { "value": 1, "modifier": 1, "marked": true },
+    "knowledge": { "value": 1, "modifier": 0, "marked": false }
+  },
+  "defenses": { "evasion": 13, "armorScore": 3, "thresholds": { "major": 9, "severe": 16 }, "armor": { "name": "Leather Armor", "baseThresholds": "6 / 13", "baseScore": 3 } },
+  "maximums": { "hp": 6, "stress": 6, "hope": 5 },
+  "proficiency": 2,
+  "experiences": [ { "name": "Cool Head, Quick Hands", "bonus": 2 }, { "name": "Relentless", "bonus": 2 }, { "name": "Respect My Authoritah", "bonus": 2 } ],
+  "weapons": [
+    { "name": "Snubnose Revolver (Tier 2)", "traitRange": "Agility / Close", "damage": "d8+5", "slot": "primary", "active": true, "feature": "Lucky Bullet: On a successful attack, you can roll an additional damage die and discard the lowest result." },
+    { "name": "Small Revolver", "traitRange": "Finesse / Far", "damage": "d6 phy", "slot": "secondary", "active": true, "feature": "Quick Shot: Spend 2 Hope to gain a +4 bonus to primary weapon damage." }
+  ],
+  "domainCards": [
+    { "name": "Get Back Up", "level": 1, "domain": "Blade", "type": "Ability", "recall": 1, "inLoadout": true, "text": "When you take Severe damage, you can mark a Stress to reduce the severity by one threshold." },
+    { "name": "Not Good Enough", "level": 1, "domain": "Blade", "type": "Ability", "recall": 1, "inLoadout": true, "text": "When you roll your damage dice, you can reroll any 1s or 2s." },
+    { "name": "Reckless", "level": 2, "domain": "Blade", "type": "Ability", "recall": 1, "inLoadout": true, "text": "Mark a Stress to gain advantage on an attack." },
+    { "name": "Scramble", "level": 3, "domain": "Blade", "type": "Ability", "recall": 1, "inLoadout": true, "text": "Once per rest, when a creature within Melee range would deal damage to you, you can avoid the attack and safely move out of Melee range of the enemy." },
+    { "name": "Shadowbind", "level": 2, "domain": "Midnight", "type": "Spell", "recall": 0, "inLoadout": true, "text": "Make a Spellcast Roll against all adversaries within Very Close range. Targets you succeed against are temporarily Restrained as their shadow binds them in place." }
+  ],
+  "features": {
+    "hope": "Deadly Determination - Spend 3 Hope to clear 2 Stress.",
+    "classAndSubclass": "**Class Features**\nMarked for Death: On a successful weapon attack, you can mark a Stress to make the target Marked for Death. When you deal damage to a target you've Marked for Death, add a number of d4s equal to your tier to the damage roll.\nYou can have only one adversary Marked for Death at a time. This condition lasts until you take a rest, the current adversary Marked for Death is defeated, or the GM spends a number of Fear equal to your tier to clear it.\nGet In & Get Out: Spend a Hope to ask the GM for a quick or inconspicuous way into or out of a place you can see. The next roll you make that acts on this information has advantage.\n\n**Subclass: Executioners Guild**\nFoundations\nFirst Strike: The first time in a scene you succeed on an attack, you deal double damage.\nAmbush: Your Marked for Death feature uses d6s instead of d4s.",
+    "heritage": "**Ancestry: Ribbet**\nAmphibious: You can breathe and move naturally underwater.\nLong Tongue: You can use your long tongue to grab onto things within Close range. **Mark a Stress** to use your tongue as a Finesse Close weapon that deals **d12** physical damage using your Proficiency.\n\n**Community: Orderborne**\nDedicated: Record three sayings or values your upbringing instilled in you. Once per rest, when you describe how you're embodying one of these principles through your current action, you can roll a **d20** as your Hope Die.\n\nOrderborne Sayings\nShoot first, shoot last\nAlways pay your tab\nPorcupine's quills point backward"
+  },
+  "restAbilities": ["Scramble (domain card)", "Orderborne: Dedicated (d20 Hope Die)"],
+  "advancements": { "tier2": ["traits", "hitPoint", "domainCard", "evasion"] },
+  "inventory": ["Torch", "Rope (50 ft)", "Basic supplies", "a seemingly broken compass", "molotov cocktail"],
+  "gold": { "chests": 0, "bags": 0, "handfuls": 7, "coins": 0 },
+  "notes": "",
+  "description": "",
+  "live": { "hpMarked": 0, "stressMarked": 2, "hope": 3, "armorSlotsMarked": 0, "restUsed": {} }
+}
