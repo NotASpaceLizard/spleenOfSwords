@@ -53,6 +53,13 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--on);outline-o
 details{margin:6px 0} summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
 textarea,input[type=text]{width:100%;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px}
 li{margin:4px 0}
+.bar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:2px solid var(--line);padding:8px 0;margin-bottom:4px;display:flex;flex-wrap:wrap;gap:4px 14px}
+.ln{margin:3px 0}
+.fx{display:block}
+.fx button{min-height:40px;margin:3px 6px 3px 0;padding:4px 12px;border-width:2px;font-weight:700}
+.fx button:disabled{opacity:.45;border-style:dashed}
+.used-row{display:flex;align-items:center;gap:8px;min-height:44px}
+h3{font-size:1rem;margin:12px 0 4px;color:var(--dim)}
 </style></head>
 <body><main id="app"><p class="dim">Loading…</p></main>
 <script>
@@ -63,6 +70,36 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 // Feature text uses **bold** markers and newlines; turn them into HTML.
 const rich = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
 const sign = n => (n >= 0 ? '+' : '') + n;
+// ---------- inline action buttons ----------
+// Scans feature text for phrases like "mark a Stress", "spend 2 Hope", "mark an Armor Slot",
+// "clear 2 Stress" and puts a matching button right under that line. Add new phrases in re below.
+const NUM = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4 };
+const n2 = w => NUM[w.toLowerCase()] ?? +w;
+const cap = w => w[0].toUpperCase() + w.slice(1).toLowerCase();
+// eff = list of [track id, change]; negative = spend/clear. Button is disabled if you can't afford it.
+const fx = (label, eff) => {
+  const no = eff.some(([r, v]) => v < 0 && state.live[TRACKS[r].k] + v < 0);
+  return `<button data-fx="${esc(JSON.stringify(eff))}" ${no ? 'disabled' : ''}>${label}${no ? ' (not enough)' : ''}</button>`;
+};
+function btns(line) {
+  const re = /spend (a|an|one|two|three|\d+) hope to clear (a|an|one|two|three|\d+) stress|(mark|spend|clear) (a|an|one|two|three|four|\d+) (stress|hope|armor slot|armor|hit point)/gi;
+  let out = '';
+  for (const m of line.matchAll(re)) {
+    if (m[1]) out += fx(`Spend ${n2(m[1])} Hope + clear ${n2(m[2])} Stress`, [['hope', -n2(m[1])], ['stress', -n2(m[2])]]);
+    else {
+      const r = /stress/i.test(m[5]) ? 'stress' : /hope/i.test(m[5]) ? 'hope' : /armor/i.test(m[5]) ? 'armor' : 'hp';
+      const v = n2(m[4]), neg = /^(spend|clear)$/i.test(m[3]);
+      out += fx(`${cap(m[3])} ${v} ${r === 'hp' ? 'HP' : cap(r)}`, [[r, neg ? -v : v]]);
+    }
+  }
+  return out ? `<span class="fx">${out}</span>` : '';
+}
+// "Once per rest" checkbox, shown under any line that says so. id must be unique per line.
+const restBox = id => `<label class="used-row"><input type="checkbox" data-rest="${id}" ${state.live.restUsed[id] ? 'checked' : ''} style="width:26px;height:26px"> <span>${state.live.restUsed[id] ? 'Used this rest' : 'Once per rest: available'}</span></label>`;
+// Draw a block of feature text line by line, each with its buttons / checkbox. pre = unique id prefix.
+const feat = (text, pre) => text.split('\n').map((ln, i) =>
+  `<div class="ln">${ln ? rich(ln) : '&nbsp;'}${btns(ln)}${/once per rest/i.test(ln) ? restBox(pre + i) : ''}</div>`).join('');
+
 
 // ---------- the tracks (add a new counter here) ----------
 // k = field in state.live, max = where the maximum comes from, shape = CSS class
@@ -119,33 +156,35 @@ function track(id) {
   return `<div class="track"><div class="label"><b>${t.label}</b> <span class="dim">${n} / ${max}</span></div>${boxes}</div>`;
 }
 function render() {
-  const s = state, id = s.identity, d = s.defenses, ch = changes();
+  const y = scrollY, s = state, id = s.identity, d = s.defenses, ch = changes();
+  const NAME = { hp: 'HP', stress: 'Stress', hope: 'Hope', armor: 'Armor' };
+  const order = s.domainCards.map((c, i) => i).sort((a, b) => s.domainCards[b].inLoadout - s.domainCards[a].inLoadout); // loadout first
   const loadout = s.domainCards.filter(c => c.inLoadout).length;
   $('#app').innerHTML = `
   <p><button data-act="back">‹ Characters</button></p>
   <h1>${esc(id.name)} <span class="dim">${esc(id.pronouns)}</span></h1>
-  <p class="dim">Level ${id.level} (tier ${id.tier}) ${esc(id.ancestry)} ${esc(id.class)} · ${esc(id.subclass)} · ${esc(id.community)}<br>Domains: ${esc(id.domains.join(', '))} · Spellcast: ${esc(id.spellcastTrait)}</p>
+  <p class="dim">Level ${id.level} (tier ${id.tier}) ${esc(id.ancestry)} ${esc(id.class)} · ${esc(id.subclass)} · ${esc(id.community)}</p>
+  <div class="bar">${Object.entries(TRACKS).map(([k, t]) => `<span>${NAME[k]} <b>${s.live[t.k]}/${t.max(s)}</b></span>`).join('')}</div>
   <section><h2>Live</h2>${track('hp')}${track('stress')}${track('hope')}${track('armor')}
-    <p class="dim">Tap a box to mark up to it. Tap the last marked box to unmark it.</p></section>
+    <p class="dim">Tap a box to mark up to it. Tap the last marked box to unmark it.</p>
+    <button data-act="rest">Take a rest (reset once-per-rest)</button></section>
+  <section><h2>Weapons</h2>${s.weapons.map((w, i) => `<div class="cd"><b>${esc(w.name)}</b> <span class="tag ${w.slot === 'primary' ? 'on' : ''}">${esc(w.slot)}</span>${w.active ? ' <span class="tag">active</span>' : ''}
+    <div>${esc(w.traitRange)} · <b>${esc(w.damage)}</b></div>${feat(w.feature, 'w' + i + '-')}</div>`).join('')}</section>
+  <section><h2>Domain cards <span class="dim">(loadout ${loadout} / 5)</span></h2>${order.map(i => { const c = s.domainCards[i]; return `<div class="cd">
+    <b>${esc(c.name)}</b> <span class="dim">lvl ${c.level} · ${esc(c.domain)} · ${esc(c.type)} · recall ${c.recall}</span>
+    ${feat(c.text, 'c' + i + '-')}
+    <button data-act="loadout" data-i="${i}" aria-pressed="${c.inLoadout}">${c.inLoadout ? '■ In loadout (tap to move to vault)' : '□ In vault (tap to move to loadout)'}</button></div>`; }).join('')}</section>
+  <section><h2>Features</h2>
+    <h3>Hope feature</h3>${feat(s.features.hope, 'h-')}
+    <h3>Class and subclass</h3>${feat(s.features.classAndSubclass, 'k-')}
+    <h3>Heritage</h3>${feat(s.features.heritage, 'r-')}</section>
   <section><h2>Defenses</h2><div class="grid">
     <div class="stat">Evasion<b>${d.evasion}</b></div><div class="stat">Armor score<b>${d.armorScore}</b></div><div class="stat">Proficiency<b>${s.proficiency}</b></div></div>
     <p>Damage: under <b>${d.thresholds.major}</b> = 1 HP · <b>${d.thresholds.major}</b>+ = 2 HP · <b>${d.thresholds.severe}</b>+ = 3 HP</p>
     <p class="dim">${esc(d.armor.name)} (base thresholds ${esc(d.armor.baseThresholds)}, base score ${d.armor.baseScore})</p></section>
   <section><h2>Traits</h2><div class="grid">${Object.entries(s.traits).map(([k, t]) =>
-    `<div class="stat">${k[0].toUpperCase() + k.slice(1)}<b>${sign(t.value)}</b>${t.marked ? '<span class="tag on">marked</span>' : ''}</div>`).join('')}</div></section>
-  <section><h2>Weapons</h2>${s.weapons.map(w => `<div class="cd"><b>${esc(w.name)}</b> <span class="tag ${w.slot === 'primary' ? 'on' : ''}">${esc(w.slot)}</span>${w.active ? ' <span class="tag">active</span>' : ''}
-    <div>${esc(w.traitRange)} · <b>${esc(w.damage)}</b></div><div class="dim">${rich(w.feature)}</div></div>`).join('')}</section>
-  <section><h2>Experiences</h2>${s.experiences.map(e => `<div>${esc(e.name)} <b>${sign(e.bonus)}</b></div>`).join('')}</section>
-  <section><h2>Domain cards <span class="dim">(loadout ${loadout} / 5)</span></h2>${s.domainCards.map((c, i) => `<div class="cd">
-    <b>${esc(c.name)}</b> <span class="dim">lvl ${c.level} · ${esc(c.domain)} · ${esc(c.type)} · recall ${c.recall}</span>
-    <div>${rich(c.text)}</div>
-    <button data-act="loadout" data-i="${i}" aria-pressed="${c.inLoadout}">${c.inLoadout ? '■ In loadout (tap to move to vault)' : '□ In vault (tap to move to loadout)'}</button></div>`).join('')}</section>
-  <section><h2>Once per rest</h2>${s.restAbilities.map((r, i) => `<label class="row" style="min-height:44px"><input type="checkbox" data-rest="${i}" ${s.live.restUsed[i] ? 'checked' : ''} style="width:28px;height:28px"> <span>${esc(r)} — ${s.live.restUsed[i] ? 'used' : 'available'}</span></label>`).join('')}
-    <button data-act="rest">Take a rest (reset all)</button></section>
-  <section><h2>Features</h2>
-    <details><summary>Hope feature</summary>${rich(s.features.hope)}</details>
-    <details><summary>Class and subclass</summary>${rich(s.features.classAndSubclass)}</details>
-    <details><summary>Heritage</summary>${rich(s.features.heritage)}</details></section>
+    `<div class="stat">${cap(k)}<b>${sign(t.value)}</b>${t.marked ? '<span class="tag on">marked</span>' : ''}</div>`).join('')}</div>
+    <h3>Experiences</h3>${s.experiences.map(e => `<div>${esc(e.name)} <b>${sign(e.bonus)}</b></div>`).join('')}</section>
   <section><h2>Gold</h2><div class="grid">${Object.keys(s.gold).map(g => `<div class="stat">${g}<div class="step" style="justify-content:center"><button data-gold="${g}" data-d="-1" aria-label="less ${g}">−</button><b>${s.gold[g]}</b><button data-gold="${g}" data-d="1" aria-label="more ${g}">+</button></div></div>`).join('')}</div></section>
   <section><h2>Inventory</h2><ul>${s.inventory.map((it, i) => `<li>${esc(it)} <button data-act="del" data-i="${i}" aria-label="remove ${esc(it)}">Remove</button></li>`).join('')}</ul>
     <div class="row"><input type="text" id="newItem" placeholder="Add an item" style="flex:1"><button data-act="add">Add</button></div></section>
@@ -153,6 +192,7 @@ function render() {
   <section><h2>End of session</h2>
     <details ${ch.length ? 'open' : ''}><summary>Changes this session (${ch.length})</summary>${ch.length ? '<ul>' + ch.map(c => `<li>${esc(c)}</li>`).join('') + '</ul><p class="dim">Re-enter these on heartofdaggers.</p>' : '<p class="dim">No changes yet.</p>'}</details>
     <div class="row"><button data-act="download"><b>Download ${esc(id.name.toLowerCase())}.json</b></button><button data-act="discard">Discard session changes</button></div></section>`;
+  scrollTo(0, y);   // keep your place after every tap
 }
 
 // ---------- events ----------
@@ -160,6 +200,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   const D = b.dataset;
   if (D.load) return loadFile(D.load);
+  if (D.fx) { for (const [r, v] of JSON.parse(D.fx)) { const t = TRACKS[r]; state.live[t.k] = Math.max(0, Math.min(t.max(state), state.live[t.k] + v)); } return save(); }
   if (D.track) { const t = TRACKS[D.track], n = +D.i + 1; state.live[t.k] = state.live[t.k] === n ? n - 1 : n; return save(); }
   if (D.gold) { state.gold[D.gold] = Math.max(0, state.gold[D.gold] + +D.d); return save(); }
   if (D.act === 'loadout') { const c = state.domainCards[D.i]; c.inLoadout = !c.inLoadout; return save(); }
