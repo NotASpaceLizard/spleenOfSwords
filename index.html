@@ -2,6 +2,12 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spleen of Swords</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<meta name="apple-mobile-web-app-title" content="Spleen">
+<meta name="theme-color" content="#0f1823">
+
 <!--
 =====================================================================
  DAGGERHEART TABLE TRACKER  -  one file, no build step, no libraries.
@@ -125,7 +131,7 @@ let base, state, key;   // base = frozen file as loaded; state = working copy
 // ---------- loading ----------
 async function boot() {
   try {
-    const list = await (await fetch('characters/index.json')).json();
+    const list = await (await fresh('characters/index.json')).json();
     $('#app').innerHTML = '<h1>Who is playing?</h1><div class="row" style="margin:12px 0">' +
       list.map(f => `<button data-load="${esc(f)}">${esc(f.replace('.json',''))}</button>`).join('') +
       '</div><p class="dim">Or open a downloaded file: <input type="file" id="file" accept=".json"></p>';
@@ -133,7 +139,9 @@ async function boot() {
     $('#app').innerHTML = '<h1>Daggerheart tracker</h1><p>Could not load the character list (this happens when the page is opened straight from a folder). Open a character file instead:</p><input type="file" id="file" accept=".json">';
   }
 }
-async function loadFile(name) { init(await (await fetch('characters/' + name)).json()); }
+// Always fetch character files fresh (GitHub Pages and browsers otherwise cache them for several minutes).
+const fresh = url => fetch(url + '?t=' + Date.now(), { cache: 'no-store' });
+async function loadFile(name) { init(await (await fresh('characters/' + name)).json()); }
 function init(json) {
   base = json; key = 'dh:' + json.identity.name;
   state = clone(json);
@@ -173,7 +181,7 @@ function render() {
   $('#app').innerHTML = `
   <p><button data-act="back">‹ Characters</button></p>
   <h1>${esc(id.name)} <span class="dim">${esc(id.pronouns)}</span></h1>
-  <p class="dim">Level ${id.level} (tier ${id.tier}) ${esc(id.ancestry)} ${esc(id.class)} · ${esc(id.subclass)} · ${esc(id.community)} · tracker v5</p>
+  <p class="dim">Level ${id.level} (tier ${id.tier}) ${esc(id.ancestry)} ${esc(id.class)} · ${esc(id.subclass)} · ${esc(id.community)} · tracker v7</p>
   <div class="bar">${Object.entries(TRACKS).map(([k, t]) => `<span>${NAME[k]} <b>${s.live[t.k]}/${t.max(s)}</b></span>`).join('')}</div>
   <section><h2>Live</h2>${track('hp')}${track('stress')}${track('hope')}${track('armor')}
     <p class="dim">Tap a box to mark up to it. Tap the last marked box to unmark it.</p>
