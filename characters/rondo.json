@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "meta": { "frozenOn": "2026-10-19", "lastSessionOn": null },
+  "meta": { "frozenOn": "2026-11-14", "lastSessionOn": "2026-10-19" },
   "identity": { "name": "Rondo", "pronouns": "He/Him", "class": "Assassin", "subclass": "Executioners Guild", "domains": ["Blade", "Midnight"], "spellcastTrait": "Agility", "ancestry": "Ribbet", "community": "Orderborne", "level": 3, "tier": 2 },
   "traits": {
     "agility": { "value": 3, "modifier": 1, "marked": true },
@@ -32,9 +32,9 @@
   },
   "restAbilities": ["Scramble (domain card)", "Orderborne: Dedicated (d20 Hope Die)"],
   "advancements": { "tier2": ["traits", "hitPoint", "domainCard", "evasion"] },
-  "inventory": ["Torch", "Rope (50 ft)", "Basic supplies", "a seemingly broken compass", "molotov cocktail"],
-  "gold": { "chests": 0, "bags": 0, "handfuls": 7, "coins": 0 },
+  "inventory": ["Torch", "Rope (50 ft)", "Basic supplies", "a seemingly broken compass", "molotov cocktail", "lasso of truth"],
+  "gold": { "chests": 0, "bags": 1, "handfuls": 4, "coins": 0 },
   "notes": "",
   "description": "",
-  "live": { "hpMarked": 0, "stressMarked": 2, "hope": 3, "armorSlotsMarked": 0, "restUsed": {} }
+  "live": { "hpMarked": 0, "stressMarked": 2, "hope": 3, "armorSlotsMarked": 1, "restUsed": {} }
 }
